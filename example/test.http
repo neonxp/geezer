@@ -1,0 +1,19 @@
+POST http://localhost:3000/test
+Content-Type: application/json
+
+{
+  "productId": 123,
+  "productName": "test",
+  "price": 123,
+  "tags": [
+    "one", "two", "three"
+  ]
+}
+
+###
+
+GET http://localhost:3000/test/62017d3fbfd5a64b46077ece
+
+###
+
+GET http://localhost:3000/test?price=123

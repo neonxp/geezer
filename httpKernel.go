@@ -8,12 +8,12 @@ import (
 )
 
 type HttpKernel struct {
-	Kernel
+	AppKernel
 }
 
 func NewHttpKernel() *HttpKernel {
 	return &HttpKernel{
-		Kernel: newKernel(),
+		AppKernel: newKernel(),
 	}
 }
 
@@ -57,7 +57,6 @@ func (s *HttpKernel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := Params{
-		Ctx:      ctx,
 		Path:     parts,
 		Query:    Values(u.Query()),
 		Headers:  Values(r.Header),
@@ -72,7 +71,7 @@ func (s *HttpKernel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	data := Data(b)
 
-	result, err := s.Call(method, name, id, data, params)
+	result, err := s.Call(ctx, method, name, id, data, params)
 	if err != nil {
 		if err == ErrMethodNotFound {
 			w.WriteHeader(http.StatusNotFound)

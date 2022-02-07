@@ -1,6 +1,7 @@
 package geezer
 
 import (
+	"context"
 	"errors"
 	"strings"
 
@@ -12,19 +13,19 @@ var (
 	ErrMethodNotFound  = errors.New("method not found")
 )
 
-type defaultKernel struct {
+type kernel struct {
 	routes map[string]Service
 	hooks  map[string]map[HookLifecycle]map[HookType][]Hook
 }
 
-func newKernel() *defaultKernel {
-	return &defaultKernel{
+func newKernel() *kernel {
+	return &kernel{
 		routes: map[string]Service{},
 		hooks:  map[string]map[HookLifecycle]map[HookType][]Hook{},
 	}
 }
 
-func (s *defaultKernel) Register(name string, service Service) error {
+func (s *kernel) Register(name string, service Service) error {
 	name = strings.ToLower(name)
 	s.routes[name] = service
 	if _, exist := s.hooks[name]; !exist {
@@ -36,7 +37,7 @@ func (s *defaultKernel) Register(name string, service Service) error {
 	return nil
 }
 
-func (s *defaultKernel) Hook(service string, lifecycle HookLifecycle, hookType HookType, hook Hook) {
+func (s *kernel) Hook(service string, lifecycle HookLifecycle, hookType HookType, hook Hook) {
 	service = strings.ToLower(service)
 	if _, exist := s.hooks[service]; !exist {
 		s.hooks[service] = map[HookLifecycle]map[HookType][]Hook{}
@@ -50,14 +51,14 @@ func (s *defaultKernel) Hook(service string, lifecycle HookLifecycle, hookType H
 	s.hooks[service][lifecycle][hookType] = append(s.hooks[service][lifecycle][hookType], hook)
 }
 
-func (s *defaultKernel) Service(name string) Service {
+func (s *kernel) Service(name string) Service {
 	if service, exist := s.routes[name]; exist {
 		return service
 	}
 	return nil
 }
 
-func (s *defaultKernel) Call(method Method, name, id string, data Data, params Params) (render.Renderer, error) {
+func (s *kernel) Call(ctx context.Context, method Method, name, id string, data Data, params Params) (render.Renderer, error) {
 	name = strings.ToLower(name)
 	service := s.Service(name)
 	if service == nil {
@@ -70,24 +71,24 @@ func (s *defaultKernel) Call(method Method, name, id string, data Data, params P
 	}
 	switch hookCtx.Method {
 	case MethodFind:
-		result, err = service.Find(hookCtx.Params)
+		result, err = service.Find(ctx, hookCtx.Params)
 	case MethodGet:
-		result, err = service.Get(hookCtx.ID, hookCtx.Params)
+		result, err = service.Get(ctx, hookCtx.ID, hookCtx.Params)
 	case MethodCreate:
-		result, err = service.Create(hookCtx.Data, hookCtx.Params)
+		result, err = service.Create(ctx, hookCtx.Data, hookCtx.Params)
 	case MethodUpdate:
-		result, err = service.Update(hookCtx.ID, hookCtx.Data, hookCtx.Params)
+		result, err = service.Update(ctx, hookCtx.ID, hookCtx.Data, hookCtx.Params)
 	case MethodPatch:
-		result, err = service.Patch(hookCtx.ID, hookCtx.Data, hookCtx.Params)
+		result, err = service.Patch(ctx, hookCtx.ID, hookCtx.Data, hookCtx.Params)
 	case MethodRemove:
-		err = service.Remove(hookCtx.ID, hookCtx.Params)
+		err = service.Remove(ctx, hookCtx.ID, hookCtx.Params)
 	default:
 		return nil, ErrMethodNotFound
 	}
 	return s.callAfterHooks(method, name, hookCtx, result, err)
 }
 
-func (s *defaultKernel) callBeforeHooks(method Method, name string, id string, data Data, params Params) (*HookContext, render.Renderer, error) {
+func (s *kernel) callBeforeHooks(method Method, name string, id string, data Data, params Params) (*HookContext, render.Renderer, error) {
 	var beforeHooks []Hook
 	if hooks, ok := s.hooks[name][HookBefore]; ok {
 		if allHooks, ok := hooks[HookAll]; ok {
@@ -117,7 +118,7 @@ func (s *defaultKernel) callBeforeHooks(method Method, name string, id string, d
 	return hookCtx, nil, nil
 }
 
-func (s *defaultKernel) callAfterHooks(method Method, name string, hookCtx *HookContext, result render.Renderer, err error) (render.Renderer, error) {
+func (s *kernel) callAfterHooks(method Method, name string, hookCtx *HookContext, result render.Renderer, err error) (render.Renderer, error) {
 	var afterHooks []Hook
 	if hooks, ok := s.hooks[name][HookAfter]; ok {
 		if allHooks, ok := hooks[HookAll]; ok {
@@ -154,9 +155,9 @@ func (s *defaultKernel) callAfterHooks(method Method, name string, hookCtx *Hook
 	return hookCtx.Result, hookCtx.Err
 }
 
-type Kernel interface {
+type AppKernel interface {
 	Register(name string, service Service) error
 	Hook(service string, lifecycle HookLifecycle, hookType HookType, hook Hook)
 	Service(name string) Service
-	Call(method Method, name, id string, data Data, params Params) (render.Renderer, error)
+	Call(ctx context.Context, method Method, name, id string, data Data, params Params) (render.Renderer, error)
 }

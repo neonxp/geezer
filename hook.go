@@ -33,7 +33,7 @@ var hookTypeFromMethod = map[Method]HookType{
 }
 
 type HookContext struct {
-	App        Kernel
+	App        AppKernel
 	Path       []string
 	Method     Method
 	Type       HookLifecycle
